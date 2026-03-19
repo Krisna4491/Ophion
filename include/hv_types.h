@@ -151,6 +151,9 @@ typedef struct _VIRTUAL_MACHINE_STATE {
     UINT64  guest_dr6;
     BOOLEAN mov_dr_exiting;
 
+    // shadowed guest CR8 (TPR) for interrupt priority checks
+    UINT8   guest_cr8;
+
 } VIRTUAL_MACHINE_STATE, *PVIRTUAL_MACHINE_STATE;
 
 #define VMCALL_TEST             0x00000001

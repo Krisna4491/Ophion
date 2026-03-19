@@ -1,7 +1,5 @@
 /*
 *   stealth.h - anti-detection stealth definitions and function prototypes
-*   ported from stealthhv hyperevade module. implements:
-*   - cpuid bare-metal caching (defeats check_invalid_leaf, hvdetecc)
 */
 #pragma once
 

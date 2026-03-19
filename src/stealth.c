@@ -1,7 +1,6 @@
 /*
 *   stealth.c - anti-detection stealth implementation
 *   implements cpuid bare-metal caching and xcr0 validation
-*   ported from stealthhv hyperevade module
 */
 #include "hv.h"
 

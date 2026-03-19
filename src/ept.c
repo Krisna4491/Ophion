@@ -1,7 +1,7 @@
 /*
 *   ept.c - extended page table (ept) initialization and management
 *   identity-mapped ept with 2mb large pages, mtrr-aware memory typing
-*   based on the stealthhv ept architecture: pml4 -> pml3 -> pml2 (2mb large pages)
+*   architecture: pml4 -> pml3 -> pml2 (2mb large pages)
 */
 #include "hv.h"
 

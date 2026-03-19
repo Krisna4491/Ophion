@@ -536,7 +536,8 @@ vmexit_handle_mov_cr(VIRTUAL_MACHINE_STATE * vcpu)
             // only bits [3:0] are valid. required when cr8-load exiting
             // is forced by must-be-1 bits
             //
-            __writecr8(*reg_ptr & 0xF);
+            vcpu->guest_cr8 = (UINT8)(*reg_ptr & 0xF);
+            __writecr8(vcpu->guest_cr8);
             break;
 
         case 4:
@@ -588,7 +589,7 @@ vmexit_handle_mov_cr(VIRTUAL_MACHINE_STATE * vcpu)
             break;
 
         case 8:
-            *reg_ptr = __readcr8();
+            *reg_ptr = vcpu->guest_cr8;
             break;
 
         default:
@@ -863,6 +864,7 @@ vmexit_handler(_Inout_ PGUEST_REGS regs, _In_ VIRTUAL_MACHINE_STATE * vcpu)
     vcpu->guest_dr2 = __readdr(2);
     vcpu->guest_dr3 = __readdr(3);
     vcpu->guest_dr6 = __readdr(6);
+    vcpu->guest_cr8 = (UINT8)__readcr8();
 
     // __vmx_vmread writes size_t
     __vmx_vmread(VMCS_EXIT_REASON, &exit_raw);
@@ -1122,7 +1124,7 @@ vmexit_handler(_Inout_ PGUEST_REGS regs, _In_ VIRTUAL_MACHINE_STATE * vcpu)
         //
         // with ack-interrupt-on-exit, the CPU stores the acknowledged
         // vector in VMCS exit info. re-inject or defer if guest can't
-        // accept it (IF=0 or STI/MOV-SS blocking).
+        // accept it (IF=0, STI/MOV-SS blocking, or CR8 priority masking).
         //
         size_t int_info_raw = 0;
         __vmx_vmread(VMCS_VMEXIT_INTERRUPTION_INFORMATION, &int_info_raw);
@@ -1143,6 +1145,13 @@ vmexit_handler(_Inout_ PGUEST_REGS regs, _In_ VIRTUAL_MACHINE_STATE * vcpu)
                 (rflags_raw & (1ULL << 9)) &&
                 !(intr_state & (GUEST_INTR_STATE_BLOCKING_BY_STI |
                                 GUEST_INTR_STATE_BLOCKING_BY_MOV_SS));
+
+            if (guest_interruptible)
+            {
+                UINT8 vector_priority = (UINT8)(vector >> 4);
+                if (vector_priority <= vcpu->guest_cr8)
+                    guest_interruptible = FALSE;
+            }
 
             if (guest_interruptible)
             {
@@ -1215,15 +1224,27 @@ vmexit_handler(_Inout_ PGUEST_REGS regs, _In_ VIRTUAL_MACHINE_STATE * vcpu)
 
     case VMX_EXIT_REASON_INTERRUPT_WINDOW:
     {
-        size_t proc_ctrl = 0;
-        __vmx_vmread(VMCS_CTRL_PROCESSOR_BASED_VM_EXECUTION_CONTROLS, &proc_ctrl);
-        proc_ctrl &= ~(size_t)CPU_BASED_VM_EXEC_CTRL_INTERRUPT_WINDOW_EXITING;
-        __vmx_vmwrite(VMCS_CTRL_PROCESSOR_BASED_VM_EXECUTION_CONTROLS, proc_ctrl);
-
         if (vcpu->has_pending_ext_interrupt)
         {
-            vmexit_inject_interrupt(vcpu->pending_ext_vector);
-            vcpu->has_pending_ext_interrupt = FALSE;
+            UINT8 vector_priority = (UINT8)(vcpu->pending_ext_vector >> 4);
+
+            if (vector_priority > vcpu->guest_cr8)
+            {
+                size_t proc_ctrl = 0;
+                __vmx_vmread(VMCS_CTRL_PROCESSOR_BASED_VM_EXECUTION_CONTROLS, &proc_ctrl);
+                proc_ctrl &= ~(size_t)CPU_BASED_VM_EXEC_CTRL_INTERRUPT_WINDOW_EXITING;
+                __vmx_vmwrite(VMCS_CTRL_PROCESSOR_BASED_VM_EXECUTION_CONTROLS, proc_ctrl);
+
+                vmexit_inject_interrupt(vcpu->pending_ext_vector);
+                vcpu->has_pending_ext_interrupt = FALSE;
+            }
+        }
+        else
+        {
+            size_t proc_ctrl = 0;
+            __vmx_vmread(VMCS_CTRL_PROCESSOR_BASED_VM_EXECUTION_CONTROLS, &proc_ctrl);
+            proc_ctrl &= ~(size_t)CPU_BASED_VM_EXEC_CTRL_INTERRUPT_WINDOW_EXITING;
+            __vmx_vmwrite(VMCS_CTRL_PROCESSOR_BASED_VM_EXECUTION_CONTROLS, proc_ctrl);
         }
 
         vcpu->advance_rip = FALSE;
@@ -1425,6 +1446,7 @@ vmexit_handler(_Inout_ PGUEST_REGS regs, _In_ VIRTUAL_MACHINE_STATE * vcpu)
         __writedr(2, vcpu->guest_dr2);
         __writedr(3, vcpu->guest_dr3);
         __writedr(6, vcpu->guest_dr6);
+        __writecr8(vcpu->guest_cr8);
     }
 
     if (vcpu->vmxoff.executed)
